@@ -1,0 +1,744 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tablero Ágil 2026 - Control de Sprints y Excepciones</title>
+    <style>
+        /* ====================
+           1. ESTILOS BASE Y VARIABLES
+           ==================== */
+        :root {
+            --color-dias: #2E86C1;
+            --color-tiempo: #E74C3C;
+            --color-fondo-actual: #D5F5E3;
+            --color-fondo-pasado: #ECF0F1;
+            --color-sombra: rgba(0, 0, 0, 0.1);
+            --color-primario: #3498DB;
+            --color-secundario: #2ECC71;
+            --color-alerta: #F39C12;
+            --color-danger: #E74C3C;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f4f7f6;
+            color: #333;
+            line-height: 1.6;
+        }
+        .contenedor {
+            max-width: 1000px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 20px;
+        }
+        @media (min-width: 768px) {
+            .contenedor {
+                grid-template-columns: 1fr 1.2fr;
+            }
+        }
+
+        /* Contenedores principales */
+        .tarjeta {
+            background: white;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px var(--color-sombra);
+        }
+
+        /* ====================
+           2. ESTILOS CONTADOR Y HEADER
+           ==================== */
+        .contador {
+            text-align: center;
+            grid-column: 1 / -1;
+        }
+        .contador h1 {
+            color: #2C3E50;
+            margin-top: 0;
+            font-size: 1.8em;
+        }
+        #dias-habiles-display {
+            font-size: 5em;
+            font-weight: 700;
+            color: var(--color-dias);
+            line-height: 1;
+        }
+        #etiqueta-dias {
+            font-size: 1.2em;
+            color: var(--color-dias);
+            font-weight: 500;
+            display: block;
+            margin-bottom: 15px;
+        }
+
+        /* Nuevo contador Sprint Actual */
+        #contenedor-sprint-actual {
+            margin-bottom: 20px;
+            display: none; /* Se muestra por JS si hay sprint activo */
+        }
+        #dias-sprint-display {
+            font-size: 3.2em;
+            font-weight: 700;
+            color: #8E44AD; /* Morado para diferenciarlo */
+            line-height: 1;
+            display: block;
+        }
+        .etiqueta-sprint-actual {
+            font-size: 0.9em;
+            color: #8E44AD;
+            font-weight: 600;
+        }
+
+        .tiempo-detalle {
+            font-size: 1.1em;
+            color: #777;
+            background: #f9f9f9;
+            padding: 10px;
+            border-radius: 8px;
+            display: inline-block;
+        }
+        .tiempo-detalle span {
+            color: var(--color-tiempo);
+            font-weight: 600;
+        }
+
+        /* ====================
+           3. GESTOR DE EXCEPCIONES (NUEVO)
+           ==================== */
+        .gestor-excepciones h2 {
+            font-size: 1.3em;
+            border-bottom: 2px solid var(--color-alerta);
+            padding-bottom: 8px;
+            margin-top: 0;
+            color: #333;
+        }
+        .form-excepcion {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-bottom: 15px;
+            background: #FFF9E6;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px dashed var(--color-alerta);
+        }
+        .form-excepcion input, .form-excepcion button {
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            font-size: 0.95em;
+        }
+        .form-excepcion button {
+            background-color: var(--color-alerta);
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+            transition: 0.2s;
+        }
+        .form-excepcion button:hover {
+            background-color: #D68910;
+        }
+        .lista-excepciones {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            max-height: 250px;
+            overflow-y: auto;
+        }
+        .excepcion-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #f9f9f9;
+            padding: 10px;
+            margin-bottom: 8px;
+            border-radius: 6px;
+            border-left: 4px solid var(--color-danger);
+            font-size: 0.9em;
+        }
+        .excepcion-info strong {
+            display: block;
+            color: var(--color-danger);
+        }
+        .acciones-exc {
+            display: flex;
+            gap: 5px;
+        }
+        .btn-editar, .btn-eliminar {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 1.2em;
+            padding: 5px;
+            border-radius: 4px;
+            transition: 0.2s;
+        }
+        .btn-editar { color: #2980B9; }
+        .btn-eliminar { color: var(--color-danger); }
+        .btn-editar:hover { background-color: #EBF5FB; }
+        .btn-eliminar:hover { background-color: #FDEDEC; }
+
+        /* ====================
+           4. TABLERO DE SPRINTS
+           ==================== */
+        .tablero-sprints h2 {
+            font-size: 1.3em;
+            border-bottom: 2px solid var(--color-primario);
+            padding-bottom: 8px;
+            margin-top: 0;
+        }
+        .lista-sprints {
+            max-height: 500px;
+            overflow-y: auto;
+            padding-right: 10px;
+        }
+        /* Scrollbar custom */
+        .lista-sprints::-webkit-scrollbar { width: 6px; }
+        .lista-sprints::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px;}
+        .lista-sprints::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 4px;}
+
+        .sprint {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 15px;
+            margin-bottom: 10px;
+            border-radius: 8px;
+            border: 1px solid #eee;
+            transition: all 0.3s ease;
+            background: white;
+        }
+        .sprint-info {
+            display: flex;
+            flex-direction: column;
+        }
+        .sprint-nombre { font-weight: bold; color: #2C3E50; }
+        .sprint-fechas { font-size: 0.85em; color: #7f8c8d; }
+        .sprint-dias { font-size: 0.85em; font-weight: 600; color: var(--color-dias); margin-top: 4px; }
+        
+        /* Estados */
+        .sprint.actual {
+            background-color: var(--color-fondo-actual);
+            border: 1px solid var(--color-secundario);
+            box-shadow: 0 2px 5px rgba(46, 204, 113, 0.2);
+        }
+        .sprint.pasado {
+            background-color: var(--color-fondo-pasado);
+            opacity: 0.8;
+        }
+        .sprint.completado {
+            background-color: #EBF5FB;
+            border-left: 6px solid var(--color-primario);
+        }
+
+        /* Switch UI */
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 44px;
+            height: 24px;
+            flex-shrink: 0;
+            margin-left: 10px;
+        }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 24px;
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 18px; width: 18px;
+            left: 3px; bottom: 3px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        input:checked + .slider { background-color: var(--color-secundario); }
+        input:checked + .slider:before { transform: translateX(20px); }
+        input:disabled + .slider { cursor: not-allowed; opacity: 0.6; }
+
+        /* Botón Reset */
+        #btn-reset {
+            width: 100%;
+            padding: 12px;
+            margin-top: 15px;
+            background-color: #95A5A6;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        #btn-reset:hover { background-color: #7F8C8D; }
+
+        /* ====================
+           5. MODAL PERSONALIZADO
+           ==================== */
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 1000;
+        }
+        .modal-content {
+            background: white; padding: 25px; border-radius: 12px; max-width: 400px; width: 90%;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.3); text-align: center;
+        }
+        .modal-content h3 { margin-top: 0; color: #2C3E50; }
+        .modal-actions { margin-top: 20px; display: flex; justify-content: center; gap: 15px; }
+        .btn-modal { padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; transition: 0.2s; }
+        .btn-modal-cancel { background: #95A5A6; color: white; }
+        .btn-modal-cancel:hover { background: #7F8C8D; }
+        .btn-modal-confirm { background: var(--color-primario); color: white; }
+        .btn-modal-confirm:hover { background: #2980B9; }
+        .btn-modal-danger { background: var(--color-danger); color: white; }
+        .btn-modal-danger:hover { background: #C0392B; }
+    </style>
+</head>
+<body>
+    <div class="contenedor">
+        <!-- 1. CONTADOR PRINCIPAL -->
+        <div class="tarjeta contador">
+            <h1>Tiempo restante de Proyecto (Finaliza 30 Nov 2026)</h1>
+            <span id="dias-habiles-display">--</span>
+            <span id="etiqueta-dias">DÍAS HÁBILES RESTANTES PROYECTO</span>
+
+            <!-- CONTADOR SPRINT ACTUAL -->
+            <div id="contenedor-sprint-actual">
+                <span id="dias-sprint-display">--</span>
+                <span class="etiqueta-sprint-actual">DÍAS RESTANTES SPRINT ACTUAL</span>
+            </div>
+
+            <div class="tiempo-detalle">
+                <span id="horas">--</span>h : 
+                <span id="minutos">--</span>m : 
+                <span id="segundos">--</span>s
+            </div>
+        </div>
+
+        <!-- 2. GESTOR DE EXCEPCIONES -->
+        <div class="tarjeta gestor-excepciones">
+            <h2>Gestión de Excepciones</h2>
+            <p style="font-size: 0.85em; color: #666; margin-top: 0;">Resta días que no se trabajaron (ej: por presencialidad obligatoria, eventos, etc.)</p>
+            
+            <div class="form-excepcion">
+                <input type="date" id="exc-fecha" required>
+                <input type="text" id="exc-motivo" placeholder="Motivo (Ej: Visita presencial a cliente)" required>
+                <div style="display: flex; gap: 10px;">
+                    <button id="btn-guardar-exc" onclick="guardarExcepcion()" style="flex: 1;">Bloquear Día</button>
+                    <button id="btn-cancelar-exc" onclick="cancelarEdicion()" style="display: none; background-color: #95A5A6; flex: 1;">Cancelar</button>
+                </div>
+            </div>
+            
+            <ul id="lista-excepciones" class="lista-excepciones">
+                <!-- Se llenará vía JS -->
+            </ul>
+        </div>
+
+        <!-- 3. TABLERO DE SPRINTS -->
+        <div class="tarjeta tablero-sprints">
+            <h2>Tablero de Sprints 2026</h2>
+            <div id="contenedor-sprints" class="lista-sprints">
+                <!-- Se llenará vía JS para no saturar el HTML -->
+            </div>
+            <button id="btn-reset" onclick="resetearSwitches()">↻ Resetear estados manuales</button>
+        </div>
+    </div>
+
+    <!-- MODAL CUSTOM (Reemplazo de alert/confirm) -->
+    <div id="custom-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-content">
+            <h3 id="modal-title">Atención</h3>
+            <p id="modal-message"></p>
+            <div class="modal-actions">
+                <button id="modal-btn-cancel" class="btn-modal btn-modal-cancel">Cancelar</button>
+                <button id="modal-btn-confirm" class="btn-modal btn-modal-confirm">Aceptar</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ==========================================
+        // CONFIGURACIÓN INICIAL (Fechas y Festivos)
+        // ==========================================
+        const FECHA_OBJETIVO = new Date('2026-11-30T23:59:59');
+
+        // Festivos Colombia 2026 (Formato YYYY-MM-DD para fácil comparación)
+        const FESTIVOS_2026 = [
+            '2026-01-01', '2026-01-12', '2026-03-23', '2026-04-02', 
+            '2026-04-03', '2026-05-01', '2026-05-18', '2026-06-08', 
+            '2026-06-15', '2026-06-29', '2026-07-20', '2026-08-07', 
+            '2026-08-17', '2026-10-12', '2026-11-02', '2026-11-16', 
+            '2026-12-08', '2026-12-25'
+        ];
+
+        // Datos de Sprints obtenidos de la imagen
+        const SPRINTS_DATA = [
+            { id: 1, inicio: '2026-02-11', fin: '2026-02-23' },
+            { id: 2, inicio: '2026-02-25', fin: '2026-03-10' },
+            { id: 3, inicio: '2026-03-11', fin: '2026-03-24' },
+            { id: 4, inicio: '2026-03-25', fin: '2026-04-07' },
+            { id: 5, inicio: '2026-04-08', fin: '2026-04-21' },
+            { id: 6, inicio: '2026-04-22', fin: '2026-05-05' },
+            { id: 7, inicio: '2026-05-06', fin: '2026-05-19' },
+            { id: 8, inicio: '2026-05-20', fin: '2026-06-02' },
+            { id: 9, inicio: '2026-06-03', fin: '2026-06-16' },
+            { id: 10, inicio: '2026-06-17', fin: '2026-06-30' },
+            { id: 11, inicio: '2026-07-01', fin: '2026-07-14' },
+            { id: 12, inicio: '2026-07-15', fin: '2026-07-28' },
+            { id: 13, inicio: '2026-07-29', fin: '2026-08-11' },
+            { id: 14, inicio: '2026-08-12', fin: '2026-08-25' },
+            { id: 15, inicio: '2026-08-26', fin: '2026-09-08' },
+            { id: 16, inicio: '2026-09-09', fin: '2026-09-22' },
+            { id: 17, inicio: '2026-09-23', fin: '2026-10-06' },
+            { id: 18, inicio: '2026-10-07', fin: '2026-10-20' },
+            { id: 19, inicio: '2026-10-21', fin: '2026-11-03' },
+            { id: 20, inicio: '2026-11-04', fin: '2026-11-17' },
+            { id: 21, inicio: '2026-11-18', fin: '2026-11-30' }
+        ];
+
+        // Estado Global
+        let excepciones = JSON.parse(localStorage.getItem('sprints_excepciones_2026')) || [];
+        let estadosManuales = JSON.parse(localStorage.getItem('sprints_estados_2026')) || {};
+        let indiceEdicion = -1; // Variable para controlar la edición del CRUD
+
+        // ==========================================
+        // SISTEMA DE MODAL (Evita bloqueos de iframe)
+        // ==========================================
+        function mostrarModal(titulo, mensaje, tipo, callbackConfirm) {
+            document.getElementById('modal-title').textContent = titulo;
+            document.getElementById('modal-message').textContent = mensaje;
+            
+            const btnCancel = document.getElementById('modal-btn-cancel');
+            const btnConfirm = document.getElementById('modal-btn-confirm');
+            const modal = document.getElementById('custom-modal');
+            
+            btnConfirm.className = 'btn-modal ' + (tipo === 'danger' ? 'btn-modal-danger' : 'btn-modal-confirm');
+            
+            btnCancel.onclick = () => { modal.style.display = 'none'; };
+            btnConfirm.onclick = () => {
+                modal.style.display = 'none';
+                if(callbackConfirm) callbackConfirm();
+            };
+            
+            if (tipo === 'alert') {
+                btnCancel.style.display = 'none';
+                btnConfirm.textContent = 'Entendido';
+            } else {
+                btnCancel.style.display = 'inline-block';
+                btnConfirm.textContent = 'Confirmar';
+            }
+            
+            modal.style.display = 'flex';
+        }
+
+        // ==========================================
+        // LÓGICA DE FECHAS Y DÍAS HÁBILES
+        // ==========================================
+        
+        // Helper para obtener YYYY-MM-DD de un Date cuidando la zona horaria
+        function toDateString(date) {
+            return date.getFullYear() + '-' + 
+                   String(date.getMonth() + 1).padStart(2, '0') + '-' + 
+                   String(date.getDate()).padStart(2, '0');
+        }
+
+        function esDiaHabil(fechaObj) {
+            const diaSemana = fechaObj.getDay();
+            if (diaSemana === 0 || diaSemana === 6) return false; // Fin de semana
+            
+            const fechaStr = toDateString(fechaObj);
+            
+            // ¿Es festivo en Colombia?
+            if (FESTIVOS_2026.includes(fechaStr)) return false;
+            
+            // ¿Está marcado como excepción por el usuario?
+            const esExcepcion = excepciones.some(exc => exc.fecha === fechaStr);
+            if (esExcepcion) return false;
+
+            return true;
+        }
+
+        function calcularDiasHabiles(fechaInicio, fechaFin) {
+            let dias = 0;
+            // Aseguramos iterar a medianoche local
+            let actual = new Date(fechaInicio + 'T00:00:00'); 
+            let fin = new Date(fechaFin + 'T23:59:59');
+
+            while (actual <= fin) {
+                if (esDiaHabil(actual)) dias++;
+                actual.setDate(actual.getDate() + 1);
+            }
+            return dias;
+        }
+
+        function recalcularTodo() {
+            renderizarSprints();
+            actualizarContadorGlobal();
+        }
+
+        // ==========================================
+        // LÓGICA DEL CONTADOR GLOBAL
+        // ==========================================
+        let cacheFechaGlobal = '';
+        let cacheDiasGlobal = 0;
+
+        function actualizarContadorGlobal() {
+            const ahora = new Date();
+            const hoyStr = toDateString(ahora);
+
+            // Recalcular días solo si cambiamos de día o si se añadió una excepción
+            if (hoyStr !== cacheFechaGlobal) {
+                cacheFechaGlobal = hoyStr;
+                // Contar desde hoy hasta el fin del proyecto
+                let diasRestantes = 0;
+                let iterador = new Date(ahora);
+                iterador.setHours(0,0,0,0);
+                
+                while (iterador <= FECHA_OBJETIVO) {
+                    if (esDiaHabil(iterador)) diasRestantes++;
+                    iterador.setDate(iterador.getDate() + 1);
+                }
+                cacheDiasGlobal = diasRestantes;
+                document.getElementById('dias-habiles-display').textContent = cacheDiasGlobal.toString().padStart(2, '0');
+
+                // --- NUEVO: Calcular días restantes del Sprint Actual ---
+                const sprintActual = SPRINTS_DATA.find(s => hoyStr >= s.inicio && hoyStr <= s.fin);
+                const divSprintActual = document.getElementById('contenedor-sprint-actual');
+                
+                if (sprintActual) {
+                    let diasSprint = calcularDiasHabiles(hoyStr, sprintActual.fin);
+                    document.getElementById('dias-sprint-display').textContent = diasSprint.toString().padStart(2, '0');
+                    divSprintActual.style.display = 'block';
+                } else {
+                    divSprintActual.style.display = 'none';
+                }
+                // --------------------------------------------------------
+            }
+
+            // Calculo de reloj
+            const distancia = FECHA_OBJETIVO.getTime() - ahora.getTime();
+            if (distancia < 0) {
+                document.getElementById('horas').textContent = '00';
+                document.getElementById('minutos').textContent = '00';
+                document.getElementById('segundos').textContent = '00';
+                return;
+            }
+
+            const horas = Math.floor((distancia % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            const minutos = Math.floor((distancia % (1000 * 60 * 60)) / (1000 * 60));
+            const segundos = Math.floor((distancia % (1000 * 60)) / 1000);
+
+            document.getElementById('horas').textContent = horas.toString().padStart(2, '0');
+            document.getElementById('minutos').textContent = minutos.toString().padStart(2, '0');
+            document.getElementById('segundos').textContent = segundos.toString().padStart(2, '0');
+        }
+
+        // ==========================================
+        // GESTIÓN DE EXCEPCIONES
+        // ==========================================
+        function renderizarExcepciones() {
+            const lista = document.getElementById('lista-excepciones');
+            lista.innerHTML = '';
+            
+            if (excepciones.length === 0) {
+                lista.innerHTML = '<li style="text-align:center; color:#999; padding: 10px;">No hay días bloqueados</li>';
+                return;
+            }
+
+            // Ordenar por fecha
+            excepciones.sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
+
+            excepciones.forEach((exc, index) => {
+                const li = document.createElement('li');
+                li.className = 'excepcion-item';
+                li.innerHTML = `
+                    <div class="excepcion-info">
+                        <strong>${exc.fecha}</strong>
+                        <span>${exc.motivo}</span>
+                    </div>
+                    <div class="acciones-exc">
+                        <button class="btn-editar" onclick="editarExcepcion(${index})" title="Editar excepción">✏️</button>
+                        <button class="btn-eliminar" onclick="eliminarExcepcion(${index})" title="Eliminar excepción">✖</button>
+                    </div>
+                `;
+                lista.appendChild(li);
+            });
+        }
+
+        function guardarExcepcion() {
+            const inputFecha = document.getElementById('exc-fecha');
+            const inputMotivo = document.getElementById('exc-motivo');
+            const fechaVal = inputFecha.value;
+            const motivoVal = inputMotivo.value;
+            
+            if (!fechaVal || !motivoVal) {
+                mostrarModal('Datos Incompletos', 'Por favor selecciona la fecha y escribe el motivo.', 'alert');
+                return;
+            }
+
+            // Verificar que no sea fin de semana o festivo ya descontado
+            const testDate = new Date(fechaVal + 'T00:00:00');
+            const diaSem = testDate.getDay();
+            if (diaSem === 0 || diaSem === 6) {
+                mostrarModal('Fecha Inválida', 'Esa fecha cae en fin de semana, ya está descontada automáticamente.', 'alert');
+                return;
+            }
+            if (FESTIVOS_2026.includes(fechaVal)) {
+                mostrarModal('Fecha Inválida', 'Esa fecha es festivo en Colombia, ya está descontada automáticamente.', 'alert');
+                return;
+            }
+            
+            // Validar si la fecha ya existe en otra excepción (y no somos nosotros mismos editando)
+            const indexExistente = excepciones.findIndex(e => e.fecha === fechaVal);
+            if (indexExistente !== -1 && indexExistente !== indiceEdicion) {
+                mostrarModal('Fecha Duplicada', 'Esa fecha ya está registrada como excepción.', 'alert');
+                return;
+            }
+
+            if (indiceEdicion > -1) {
+                // Modo Edición
+                excepciones[indiceEdicion] = { fecha: fechaVal, motivo: motivoVal };
+                cancelarEdicion(); // Limpia inputs y variables
+            } else {
+                // Modo Creación
+                excepciones.push({ fecha: fechaVal, motivo: motivoVal });
+                inputFecha.value = '';
+                inputMotivo.value = '';
+            }
+
+            localStorage.setItem('sprints_excepciones_2026', JSON.stringify(excepciones));
+            renderizarExcepciones();
+            
+            // Forzar recálculo del contador global y sprints
+            cacheFechaGlobal = ''; 
+            recalcularTodo();
+        }
+
+        function editarExcepcion(index) {
+            indiceEdicion = index;
+            const exc = excepciones[index];
+            document.getElementById('exc-fecha').value = exc.fecha;
+            document.getElementById('exc-motivo').value = exc.motivo;
+            
+            document.getElementById('btn-guardar-exc').textContent = 'Actualizar Día';
+            document.getElementById('btn-guardar-exc').style.backgroundColor = '#2980B9';
+            document.getElementById('btn-cancelar-exc').style.display = 'block';
+        }
+
+        function cancelarEdicion() {
+            indiceEdicion = -1;
+            document.getElementById('exc-fecha').value = '';
+            document.getElementById('exc-motivo').value = '';
+            
+            const btnGuardar = document.getElementById('btn-guardar-exc');
+            btnGuardar.textContent = 'Bloquear Día';
+            btnGuardar.style.backgroundColor = 'var(--color-alerta)';
+            
+            document.getElementById('btn-cancelar-exc').style.display = 'none';
+        }
+
+        function eliminarExcepcion(index) {
+            mostrarModal('Eliminar Excepción', '¿Eliminar esta excepción y devolver el día al calendario de trabajo?', 'danger', () => {
+                if (indiceEdicion === index) cancelarEdicion(); // Resetear form si se estaba editando
+                excepciones.splice(index, 1);
+                localStorage.setItem('sprints_excepciones_2026', JSON.stringify(excepciones));
+                renderizarExcepciones();
+                
+                cacheFechaGlobal = ''; 
+                recalcularTodo();
+            });
+        }
+
+        // ==========================================
+        // RENDERIZADO DEL TABLERO DE SPRINTS
+        // ==========================================
+        function renderizarSprints() {
+            const contenedor = document.getElementById('contenedor-sprints');
+            contenedor.innerHTML = '';
+            
+            const hoy = new Date();
+            hoy.setHours(0,0,0,0);
+
+            SPRINTS_DATA.forEach(sprint => {
+                const fInicio = new Date(sprint.inicio + 'T00:00:00');
+                const fFin = new Date(sprint.fin + 'T23:59:59');
+                const diasHabiles = calcularDiasHabiles(sprint.inicio, sprint.fin);
+
+                // Crear elemento
+                const div = document.createElement('div');
+                div.className = 'sprint';
+                
+                // Determinar estado por fecha
+                let estadoAutomatico = '';
+                let bloqueado = false;
+                let checkeado = false;
+
+                if (hoy > fFin) {
+                    estadoAutomatico = 'pasado';
+                    bloqueado = true;
+                    checkeado = true;
+                } else if (hoy >= fInicio && hoy <= fFin) {
+                    estadoAutomatico = 'actual';
+                }
+
+                // Aplicar estado manual si existe (y si no es pasado)
+                if (estadoAutomatico !== 'pasado' && estadosManuales[sprint.id]) {
+                    estadoAutomatico = 'completado';
+                    checkeado = true;
+                }
+
+                if (estadoAutomatico) div.classList.add(estadoAutomatico);
+
+                // Formatear fechas para UI
+                const strInicio = fInicio.toLocaleDateString('es-CO', { day: '2-digit', month: 'short' });
+                const strFin = fFin.toLocaleDateString('es-CO', { day: '2-digit', month: 'short' });
+
+                div.innerHTML = `
+                    <div class="sprint-info">
+                        <span class="sprint-nombre">Sprint ${sprint.id}</span>
+                        <span class="sprint-fechas">${strInicio} - ${strFin}</span>
+                        <span class="sprint-dias">⚙️ ${diasHabiles} días hábiles efectivos</span>
+                    </div>
+                    <label class="switch">
+                        <input type="checkbox" onchange="toggleSprint(${sprint.id}, this)" 
+                               ${checkeado ? 'checked' : ''} 
+                               ${bloqueado ? 'disabled' : ''}>
+                        <span class="slider"></span>
+                    </label>
+                `;
+                contenedor.appendChild(div);
+            });
+        }
+
+        function toggleSprint(sprintId, checkbox) {
+            estadosManuales[sprintId] = checkbox.checked;
+            localStorage.setItem('sprints_estados_2026', JSON.stringify(estadosManuales));
+            renderizarSprints(); // Re-renderizar para aplicar clases visuales
+        }
+
+        function resetearSwitches() {
+            mostrarModal('Resetear Sprints', '⚠️ ¿Borrar el progreso manual de los Sprints activos?', 'danger', () => {
+                estadosManuales = {};
+                localStorage.removeItem('sprints_estados_2026');
+                renderizarSprints();
+            });
+        }
+
+        // ==========================================
+        // INICIO DE LA APLICACIÓN
+        // ==========================================
+        renderizarExcepciones();
+        recalcularTodo();
+        setInterval(actualizarContadorGlobal, 1000);
+
+    </script>
+</body>
+</html>
